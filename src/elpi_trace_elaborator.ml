@@ -49,11 +49,15 @@ let load_item i =
 let read_stdin () =
   let lexer_state = Yojson.Safe.init_lexer () in
   let lexbuf = Lexing.from_channel stdin in
-  begin try while true do
-    let i = read_item lexer_state lexbuf in
-    load_item i
-  done
-  with Yojson.Json_error _ -> () end;
+  begin
+    try
+      while true do
+        let i = read_item lexer_state lexbuf in
+        load_item i
+       done
+    with Yojson.Json_error err ->
+      Printf.eprintf "XXXX: %s\n" err;
+  end;
   !steps
 
 end
@@ -481,6 +485,9 @@ end = struct
   let cards elaborated_steps ~stack_frames ~aggregated_goal_success ~goal_text ~goal_attempts : trace =
     let find_success = find_success aggregated_goal_success in
     let find_goal_text = find_goal_text goal_text in
+
+    Printf.eprintf "#elaborated_steps: %d\n" (StepMap.cardinal elaborated_steps);
+
     let pre_cards =
     StepMap.bindings elaborated_steps |> List.map (fun ((step_id,runtime_id),(timestamp,step)) ->
       let step =
@@ -626,12 +633,20 @@ end = struct
         | `Cut (cut_goal_id,cut_victims) ->
              { step_id; step = `Cut { cut_goal_id; cut_victims }; runtime_id; color = `Grey }
       in
-      pre_cards |> List.filter (fun (_,(_,_,rid)) -> rid = 0) |> List.map pre_card2card
+
+      Printf.eprintf "#cards: %d\n" (List.length pre_cards);
+      let min_rid = List.fold_left (fun acc (_,(_,_,rid)) ->
+          Printf.eprintf "min %d %d\n%!" acc rid;
+          min acc rid)
+        max_int pre_cards in
+      pre_cards |> List.filter (fun (_,(_,_,rid)) -> rid = min_rid) |> List.map pre_card2card
       
 end
 
 let main =
   let raw_steps = Raw.read_stdin () in
+
+  Printf.eprintf "raw_steps: %d\n" (StepMap.cardinal raw_steps) ; 
 
   let { Elaborate.steps;  stack_frames; goal_text } = Elaborate.elaborate raw_steps in
   let { Elaborate.aggregated_goal_success; goal_attempts } = Elaborate.success_analysis steps in
